@@ -6,6 +6,8 @@ from datetime import datetime
 import time
 import os
 from tqdm import tqdm
+import re
+
 
 ##오늘날짜얻기
 today = datetime.today().strftime('%Y%m%d')
@@ -26,6 +28,26 @@ except OSError:
 104 : 세계
 105 : IT/과학
 """
+
+
+def convert_datetime_format(get_time):
+    """
+    2023.08.31. 오후 3:51
+    to
+    YYYY-MM-DD HH:MI:SS
+    """
+    if '오후' in get_time:
+        # 오후인 경우, 시간에 12를 더해서 24시간 형식으로 변환
+        tmp_time = datetime.strptime(get_time, "%Y.%m.%d. 오후 %I:%M")
+        tmp_time = tmp_time.replace(hour=tmp_time.hour + 12)
+    else:
+        # 오전인 경우, 그대로 24시간 형식으로 변환
+        tmp_time = datetime.strptime(get_time, "%Y.%m.%d. 오전 %I:%M")
+
+    return tmp_time.strftime("%Y-%m-%d %H:%M:%S")
+
+
+
 
 
 
@@ -64,6 +86,7 @@ for i in tqdm(cat):
 for i in tqdm(cat):
     #print(f"cat {i}: {url_lists[i]}")
 
+
     #빈 데이터프레임 생성
     columns = {
         '뉴스URL': [],
@@ -88,72 +111,90 @@ for i in tqdm(cat):
         #print(soup)
         #newslist = soup.select(".office_header")
         #print(len(newslist))
-
+        
+        ##뉴스업체
+        #ofhd_float_title_text
         try:
-            ##뉴스업체
-            #ofhd_float_title_text
+
             siteName = soup.find(class_="c_inner")
             siteName_val = siteName.text.split("ⓒ")[1].strip().split('.')[0].strip()
         except:
-            siteName_val = None
-            print(url)
-
+            continue
+            #siteName_val = None
+            #print(url)
 
         ##기사제목
         #media_end_head_headline
-        title = soup.find(class_="media_end_head_headline")
-        title_val = title.text
-
+        try:
+            title = soup.find(class_="media_end_head_headline")
+            title_val = title.text
+        except:
+            continue
+            #title_val = None
+            #print(url)
 
         ##작성일자
         #media_end_head_info_datestamp_time _ARTICLE_DATE_TIME
-        createDate = soup.find(class_="media_end_head_info_datestamp_time _ARTICLE_DATE_TIME")
-        createDate_val = createDate.text
-
         try:
-            ##수정일자
-            #media_end_head_info_datestamp_time _ARTICLE_MODIFY_DATE_TIME
+            createDate = soup.find(class_="media_end_head_info_datestamp_time _ARTICLE_DATE_TIME")
+            createDate_val = convert_datetime_format(createDate.text)
+        except:
+            continue
+            #createDate_val = None
+            #print(url)
+
+        ##수정일자
+        #media_end_head_info_datestamp_time _ARTICLE_MODIFY_DATE_TIME
+        try:
             modifyDate = soup.find(class_="media_end_head_info_datestamp_time _ARTICLE_MODIFY_DATE_TIME")
-            modifyDate_val = modifyDate.text
+            modifyDate_val = convert_datetime_format(modifyDate.text)
         except:
             modifyDate_val = None
 
 
         ##본문내용
         #dic_area 안 br카테고리 txt
-        brs = soup.find(id="dic_area")
-        #print(len(brs))
-        #brs = lis.findAll("br")
-        #brs.findAll("br")
-        text_list = []
-        for br in brs:
-            text_list.append(br.get_text(strip=True))
-        #print(text_list)
-
-
-        img_url_list = []
         try:
-            ##이미지 URL
-            #end_photo_org
+            #text_list = ""
+
+            brs = soup.find(id="dic_area")
+            #print(len(brs))
+            #brs = lis.findAll("br")
+            #brs.findAll("br")
+
+            text_list = brs.get_text(strip=True)
+            #for br in brs:
+            #    text_list.append(br.get_text(strip=True))
+            #print(text_list)
+        except:
+            print(url)
+
+
+        ##이미지 URL
+        #end_photo_org
+        try:
+            img_url_list = []
+
             urs = soup.findAll(class_="end_photo_org")
             #print(len(urs))
-            img_url_list = []
             for ur in urs:
                 img_url_list.append(ur.img['data-src'])
             #print(img_url_list)
         except:
-            pass
-
-
+            print(url)
 
         ##작성기자 기자 이메일
         #byline_s
-        authors = soup.findAll(class_="byline_s")
-        #print(len(authors))
-        author_list = []
-        for au in authors:
-            author_list.append(au.text)
-        #print(author_list)
+        try:
+            author_list = []
+
+            authors = soup.findAll(class_="byline_s")
+            #print(len(authors))
+            for au in authors:
+                author_list.append(au.text)
+            #print(author_list)
+        except:
+            print(url)
 
 
 
@@ -164,8 +205,8 @@ for i in tqdm(cat):
             '작성일자': createDate_val,
             '수정일자': modifyDate_val,
             '본문내용': text_list,
-            '이미지URL': img_url_list,
-            '작성기자&이메일': author_list,
+            '이미지URL': str(' '.join(img_url_list)),
+            '작성기자&이메일': ' '.join(author_list),
         }
         new_row_df = pd.DataFrame([new_row], columns=columns)
 
