@@ -10,7 +10,6 @@ import re
 import mysql.connector
 import random
 
-
 """
 100 : 정치
 101 : 경제
@@ -28,12 +27,15 @@ today = datetime.today().strftime('%Y%m%d')
 cats = [100, 101, 102, 103 ,104, 105]
 last_url = {100:"",101:"",102:"",103:"",104:"",105:""}
 
+
 ##data 폴더 생성
 try:
     if not os.path.exists("data"):
         os.mkdir("data")
 except OSError:
     print ('Error: Creating directory. ' +  "data")
+
+
 
 
 def cleanText(readData):
@@ -111,6 +113,21 @@ def send_info(cats, url_lists, today):
     # cat 값에 따라 url_list에 접근
     for cat in tqdm(cats):
         #print(f"cat {i}: {url_lists[i]}")
+
+        #빈 데이터프레임 생성
+        columns = {
+            '뉴스URL': [],
+            '뉴스업체': [],
+            '기사제목': [],
+            '작성일자': [],
+            '수정일자': [],
+            '본문내용': [],
+            '이미지URL': [],
+            '작성기자&이메일': []
+        }
+        df = pd.DataFrame(columns)
+        #print(df)
+
 
         #print(list(reversed(url_lists[cat])))
         for url in list(reversed(url_lists[cat])):
@@ -208,47 +225,44 @@ def send_info(cats, url_lists, today):
             except:
                 print(url)
 
-            # db연결
-            db_connection = mysql.connector.connect(
-                    host="shtestdb.duckdns.org",
-                    user="hun",
-                    port="13306",
-                    password="12344321",
-                    database="hun_test",
-                )
-            cursor = db_connection.cursor()
 
+            new_row = {
+                '뉴스URL': url,
+                '뉴스업체': siteName_val,
+                '기사제목': title_val,
+                '작성일자': createDate_val,
+                '수정일자': modifyDate_val,
+                '본문내용': text_list,
+                '이미지URL': str(' '.join(img_url_list)),
+                '작성기자&이메일': ' '.join(author_list),
+            }
+            new_row_df = pd.DataFrame([new_row], columns=columns)
 
-            if modifyDate_val != "":
-                article_data = [
-                    ( cat, url, siteName_val, title_val, str(' '.join(author_list)), createDate_val, modifyDate_val, text_list, str(' '.join(img_url_list))),
-                    # 다른 기사 데이터도 추가
-                    ]
-            else:
-                article_data = [
-                    ( cat, url, siteName_val, title_val, str(' '.join(author_list)), createDate_val, modifyDate_val, text_list, str(' '.join(img_url_list))),
-                    # 다른 기사 데이터도 추가
-                    ]
-            article_query = """
-            INSERT IGNORE INTO Article (category_id, news_url, company_name, title, author_info, create_date, modify_date, content, image_url)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
-
-            
-                    
-            cursor.executemany(article_query, article_data)
-            db_connection.commit()
-
-            # 연결 종료
-            cursor.close()
-            db_connection.close()
-
+            df = pd.concat([df,new_row_df], ignore_index=True)
             last_url[cat] = url
 
             time.sleep(generate_weighted_random_number(0.8, 2.2))
+        
+        df.to_csv(f"./data/{cat}-{today}_naver_news_crawling.csv", encoding="utf-8-sig", mode='a')
 
 
+def create_csv(cats, today):
 
+    for cat in cats:
+        columns = {
+            '뉴스URL': [],
+            '뉴스업체': [],
+            '기사제목': [],
+            '작성일자': [],
+            '수정일자': [],
+            '본문내용': [],
+            '이미지URL': [],
+            '작성기자&이메일': []
+        }
+        df = pd.DataFrame(columns)
+        df.to_csv(f"./data/{cat}-{today}_naver_news_crawling.csv", encoding="utf-8-sig")
+
+create_csv(cats, today)
 
 while True:
 
@@ -278,8 +292,22 @@ while True:
 
     time.sleep(10)
 
-
     
+
+
+"""/*
+        if modifyDate_val != "":
+         article_data = [
+            ( cat, url, company_name, title, author_info, create_date, modify_date, news_contents, str(' '.join(image_url))),
+            # 다른 기사 데이터도 추가
+            ]
+        else:
+           article_data = [
+            ( cat, url, company_name, title, author_info, create_date, None, news_contents, str(' '.join(image_url))),
+            # 다른 기사 데이터도 추가
+            ]
+
+"""
 
 
 

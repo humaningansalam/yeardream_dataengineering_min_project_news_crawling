@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import json
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import os
 from tqdm import tqdm
@@ -10,6 +10,16 @@ import re
 import mysql.connector
 import random
 
+
+
+#print(today)
+
+##data 폴더 생성
+try:
+    if not os.path.exists("data"):
+        os.mkdir("data")
+except OSError:
+    print ('Error: Creating directory. ' +  "data")
 
 """
 100 : 정치
@@ -19,21 +29,6 @@ import random
 104 : 세계
 105 : IT/과학
 """
-
-
-##오늘날짜얻기
-today = datetime.today().strftime('%Y%m%d')
-#print(today)
-
-cats = [100, 101, 102, 103 ,104, 105]
-last_url = {100:"",101:"",102:"",103:"",104:"",105:""}
-
-##data 폴더 생성
-try:
-    if not os.path.exists("data"):
-        os.mkdir("data")
-except OSError:
-    print ('Error: Creating directory. ' +  "data")
 
 
 def cleanText(readData):
@@ -110,6 +105,20 @@ def send_info(cats, url_lists, today):
     global last_url
     # cat 값에 따라 url_list에 접근
     for cat in tqdm(cats):
+
+        #빈 데이터프레임 생성
+        columns = {
+            '뉴스URL': [],
+            '뉴스업체': [],
+            '기사제목': [],
+            '작성일자': [],
+            '수정일자': [],
+            '본문내용': [],
+            '이미지URL': [],
+            '작성기자&이메일': []
+        }
+        df = pd.DataFrame(columns)
+
         #print(f"cat {i}: {url_lists[i]}")
 
         #print(list(reversed(url_lists[cat])))
@@ -208,78 +217,137 @@ def send_info(cats, url_lists, today):
             except:
                 print(url)
 
-            # db연결
-            db_connection = mysql.connector.connect(
-                    host="shtestdb.duckdns.org",
-                    user="hun",
-                    port="13306",
-                    password="12344321",
-                    database="hun_test",
-                )
-            cursor = db_connection.cursor()
-
-
-            if modifyDate_val != "":
-                article_data = [
-                    ( cat, url, siteName_val, title_val, str(' '.join(author_list)), createDate_val, modifyDate_val, text_list, str(' '.join(img_url_list))),
-                    # 다른 기사 데이터도 추가
-                    ]
-            else:
-                article_data = [
-                    ( cat, url, siteName_val, title_val, str(' '.join(author_list)), createDate_val, modifyDate_val, text_list, str(' '.join(img_url_list))),
-                    # 다른 기사 데이터도 추가
-                    ]
-            article_query = """
-            INSERT IGNORE INTO Article (category_id, news_url, company_name, title, author_info, create_date, modify_date, content, image_url)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
-
             
+            while True:
+                try:
+                    # db연결
+                    db_connection = mysql.connector.connect(
+                            host="shtestdb.duckdns.org",
+                            user="hun",
+                            port="13306",
+                            password="12341234!",
+                            database="hun_test",
+                        )
+                    cursor = db_connection.cursor()
+
+
+                    if modifyDate_val != "":
+                        article_data = [
+                            ( cat, url, siteName_val, title_val, str(' '.join(author_list)), createDate_val, modifyDate_val, text_list, str(' '.join(img_url_list))),
+                            # 다른 기사 데이터도 추가
+                            ]
+                    else:
+                        article_data = [
+                            ( cat, url, siteName_val, title_val, str(' '.join(author_list)), createDate_val, modifyDate_val, text_list, str(' '.join(img_url_list))),
+                            # 다른 기사 데이터도 추가
+                            ]
+                    article_query = """
+                    INSERT IGNORE INTO Article (category_id, news_url, company_name, title, author_info, create_date, modify_date, content, image_url)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+
                     
-            cursor.executemany(article_query, article_data)
-            db_connection.commit()
+                            
+                    cursor.executemany(article_query, article_data)
+                    db_connection.commit()
 
-            # 연결 종료
-            cursor.close()
-            db_connection.close()
+                    # 연결 종료
+                    cursor.close()
+                    db_connection.close()
+                    break
+                except:
+                    time.sleep(10)
 
+
+            new_row = {
+                '뉴스URL': url,
+                '뉴스업체': siteName_val,
+                '기사제목': title_val,
+                '작성일자': createDate_val,
+                '수정일자': modifyDate_val,
+                '본문내용': text_list,
+                '이미지URL': str(' '.join(img_url_list)),
+                '작성기자&이메일': ' '.join(author_list),
+            }
+            new_row_df = pd.DataFrame([new_row], columns=columns)
+
+            df = pd.concat([df,new_row_df], ignore_index=True)
             last_url[cat] = url
 
             time.sleep(generate_weighted_random_number(0.8, 2.2))
+            
+        df.to_csv(f"./data/{cat}_naver_news_crawling.csv", encoding="utf-8-sig", mode='a')
+
+cats = [100, 101, 102, 103 ,104, 105]
+last_url = {100:"",101:"",102:"",103:"",104:"",105:""}
+
+
+
+def create_csv(cats):
+
+    for cat in cats:
+        columns = {
+            '뉴스URL': [],
+            '뉴스업체': [],
+            '기사제목': [],
+            '작성일자': [],
+            '수정일자': [],
+            '본문내용': [],
+            '이미지URL': [],
+            '작성기자&이메일': []
+        }
+        df = pd.DataFrame(columns)
+        df.to_csv(f"./data/{cat}_naver_news_crawling.csv", encoding="utf-8-sig")
+
+create_csv(cats)
 
 
 
 
-while True:
 
-    now = datetime.today().strftime('%Y%m%d')
+# 시작 날짜 설정 (예: 2023년 9월 1일)
+start_date = datetime(2023, 9, 2)
+
+# 오늘 날짜 구하기
+end_date = datetime.now()
+
+current_date = start_date
+
+while current_date <= end_date:
+
 
     url_lists = {}
     count = 0
+    for cat in tqdm(cats):
+        url_lists[cat] = make_urllist(cat, current_date.strftime("%Y%m%d"))
+        count += len(url_lists[cat])
 
-    if today == now:
-        for cat in tqdm(cats):
-            url_lists[cat] = make_urllist(cat, today)
-            count += len(url_lists[cat])
-        print(f"found new url : {count}")
-        send_info(cats, url_lists, today)
+    print(f"found new url : {count}")
 
-    else:
-        for cat in tqdm(cats):
-            url_lists[cat] = make_urllist(cat, today)
-            count += len(url_lists[cat])
-        print(f"last found new url : {count}")
-        send_info(cats, url_lists, today)
 
-        today = now
-        last_url = {100:"",101:"",102:"",103:"",104:"",105:""}
-        create_csv(cats, today)
+    send_info(cats, url_lists, current_date.strftime("%Y%m%d"))
+
 
 
     time.sleep(10)
-
+    current_date += timedelta(days=1)
 
     
+
+
+"""/*
+        if modifyDate_val != "":
+         article_data = [
+            ( cat, url, company_name, title, author_info, create_date, modify_date, news_contents, str(' '.join(image_url))),
+            # 다른 기사 데이터도 추가
+            ]
+        else:
+           article_data = [
+            ( cat, url, company_name, title, author_info, create_date, None, news_contents, str(' '.join(image_url))),
+            # 다른 기사 데이터도 추가
+            ]
+
+"""
 
 
 
